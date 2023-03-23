@@ -158,20 +158,23 @@ public class ChatApp {
         System.out.println("输入对方ID：");
         destName = scanner.nextLine();
 
+
+        System.out.println("1/发送消息，2/发送文件：");
+        String c = scanner.nextLine();
+        if(c.equals("1")) {
+            msgType= MsgType.TEXT;
+        }
+        else {
+            msgType= MsgType.FILE;
+        }
+
+        System.out.println("输入文件存储位置：");
+        fileSavePath= scanner.nextLine();
+
         destination = session.createQueue(String.format(patternQueue, destName));
         consumer = session.createConsumer(session.createQueue(String.format(patternQueue, id)));
 
         consumer.setMessageListener(new TextListener(this));
-
-        System.out.println("1/发送消息，2/发送文件：");
-        String c = scanner.nextLine();
-        if(c.equals("1"))
-            msgType=MsgType.TEXT;
-        else
-            msgType=MsgType.FILE;
-
-        System.out.println("输入文件存储位置：");
-        fileSavePath= scanner.nextLine();
 
         System.out.println("输入消息内容/文件路径（输入exit退出，“forward:对方id” 转发）：");
         String sendMsg = scanner.nextLine();
@@ -264,6 +267,8 @@ class TextListener implements MessageListener {
                             "//", fileInfo[1], client.getFileSavePath(), fileName);
 
                     System.out.println("接收到文件：" + fileName);
+                    this.client.setLastMsgType(MsgType.FILE);
+                    this.client.setLastFilePath(client.getFileSavePath()+"/"+fileName);
                 } else{
                     System.out.println(LocalDateTime.now() + " " + text);
                     this.client.setLastMsgType(MsgType.TEXT);
