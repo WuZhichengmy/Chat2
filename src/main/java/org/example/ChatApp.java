@@ -4,7 +4,9 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 
 import javax.jms.*;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -41,6 +43,51 @@ public class ChatApp {
     private MsgType msgType; //信息的类型
     private ChatType mode; //0为单发
     private MsgType lastMsgType; //上一条收到的消息类型
+    private String FTPHost;
+    private String FTPPort;
+    private String FTPUser;
+    private String FTPPwd;
+    private String fileSavePath;
+
+    public String getFileSavePath() {
+        return fileSavePath;
+    }
+
+    public void setFileSavePath(String fileSavePath) {
+        this.fileSavePath = fileSavePath;
+    }
+
+    public String getFTPHost() {
+        return FTPHost;
+    }
+
+    public void setFTPHost(String FTPHost) {
+        this.FTPHost = FTPHost;
+    }
+
+    public String getFTPPort() {
+        return FTPPort;
+    }
+
+    public void setFTPPort(String FTPPort) {
+        this.FTPPort = FTPPort;
+    }
+
+    public String getFTPUser() {
+        return FTPUser;
+    }
+
+    public void setFTPUser(String FTPUser) {
+        this.FTPUser = FTPUser;
+    }
+
+    public String getFTPPwd() {
+        return FTPPwd;
+    }
+
+    public void setFTPPwd(String FTPPwd) {
+        this.FTPPwd = FTPPwd;
+    }
 
     public MsgType getLastMsgType() {
         return lastMsgType;
@@ -90,10 +137,14 @@ public class ChatApp {
         return id;
     }
 
-    public ChatApp(String addr, String id) throws JMSException {
+    public ChatApp(String addr, String id, String FTPHost, String FTPPort, String FTPUser, String FTPPwd) throws JMSException {
         this.id = id;
         this.serverAddr=addr;
         this.connectionFactory = new ActiveMQConnectionFactory("tcp://" + serverAddr);
+        this.FTPHost=FTPHost;
+        this.FTPUser=FTPUser;
+        this.FTPPort=FTPPort;
+        this.FTPPwd=FTPPwd;
         connection = connectionFactory.createConnection();
         connection.start();
         session = connection.createSession(true, Session.AUTO_ACKNOWLEDGE);
@@ -101,7 +152,6 @@ public class ChatApp {
 
     public void start() throws JMSException, IOException {
         Scanner scanner = new Scanner(System.in);
-        String type = scanner.nextLine();
         MessageConsumer consumer;
 
         String destName;
@@ -119,6 +169,9 @@ public class ChatApp {
             msgType=MsgType.TEXT;
         else
             msgType=MsgType.FILE;
+
+        System.out.println("输入文件存储位置：");
+        fileSavePath= scanner.nextLine();
 
         System.out.println("输入消息内容/文件路径（输入exit退出，“forward:对方id” 转发）：");
         String sendMsg = scanner.nextLine();
@@ -164,14 +217,13 @@ public class ChatApp {
      */
     public void sendQueueFile(String filePath, Destination msgDest) throws IOException, JMSException {
         File file = new File(filePath);
+        FileInputStream fileInputStream = new FileInputStream(file);
         String fileName = file.getName();
-        byte[] bytes = Files.readAllBytes(file.toPath());
-        MessageProducer producer = session.createProducer(msgDest);
-        BytesMessage bytesMessage = session.createBytesMessage();
-        bytesMessage.writeBytes(bytes);
-        sendQueueMsg("file::"+fileName, msgDest);
-        producer.send(bytesMessage);
+        String fileMD5 = FTPUtils.getMD5(filePath);
+        FTPUtils.uploadFile(FTPHost, FTPUser, FTPPwd, Integer.valueOf(FTPPort), "/", fileMD5, fileInputStream);
+        sendQueueMsg("file::"+fileName+","+fileMD5, msgDest);
         session.commit();
+        fileInputStream.close();
     }
 
 }
@@ -206,7 +258,11 @@ class TextListener implements MessageListener {
             try {
                 String text = textMessage.getText();
                 if(text.startsWith("file::")){
-                    fileName=text.substring(6);
+                    String[] fileInfo=text.substring(6).split(",");
+                    fileName=fileInfo[0];
+                    FTPUtils.downloadFile(client.getFTPHost(), client.getFTPUser(), client.getFTPPwd(), Integer.parseInt(client.getFTPPort()),
+                            "//", fileInfo[1], client.getFileSavePath(), fileName);
+
                     System.out.println("接收到文件：" + fileName);
                 } else{
                     System.out.println(LocalDateTime.now() + " " + text);
@@ -216,21 +272,9 @@ class TextListener implements MessageListener {
             } catch (JMSException e) {
                 throw new RuntimeException(e);
             }
-        } else if(message instanceof BytesMessage) {
-            // 文件
-            BytesMessage bytesMessage = (BytesMessage) message;
-            byte[] bytes = new byte[1024];
-            try {
-                bytesMessage.readBytes(bytes);
-                Path path = Paths.get(".//" + fileName);
-                Files.write(path, bytes);
-                this.client.setLastMsgType(MsgType.FILE);
-                this.client.setLastFilePath(".//" + fileName);
-            } catch (JMSException | IOException e) {
-                e.printStackTrace();
-            }
         } else {
             System.out.println("无法处理的消息类型");
         }
     }
+
 }

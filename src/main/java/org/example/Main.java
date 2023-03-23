@@ -9,8 +9,7 @@ public class Main {
         String id;
         Scanner scanner = new Scanner(System.in);
         id = scanner.nextLine();
-        ChatApp chatClient = new ChatApp("127.0.0.1:61616", id);
-        //TopicChatClient chatClient = new TopicChatClient("127.0.0.1:61616", id);
+        ChatApp chatClient = new ChatApp("1.12.51.41:61616", id, "1.12.51.41", "21", "user", "userpwd");
         chatClient.start();
     }
 }
