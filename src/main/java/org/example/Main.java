@@ -10,7 +10,6 @@ public class Main {
         Scanner scanner = new Scanner(System.in);
         id = scanner.nextLine();
         ChatApp chatClient = new ChatApp("127.0.0.1:61616", id);
-        //TopicChatClient chatClient = new TopicChatClient("127.0.0.1:61616", id);
         chatClient.start();
     }
 }
